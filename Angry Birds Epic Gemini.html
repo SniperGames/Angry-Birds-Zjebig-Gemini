@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Epic Bird Battle RPG</title>
+    <link rel="icon" href="RedBird.png">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #222;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+            background-image: ('Background.png');
+            background-size: cover;
+        }
+
+        /* === EKRAN MAPY === */
+        #map-screen {
+            width: 800px;
+            height: 500px;
+            position: relative;
+            background-image: url('MapBackground.png'); /* Twoja mapa */
+            background-size: cover;
+            background-position: center;
+            border: 5px solid #444;
+            border-radius: 10px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            display: block; /* Widoczny na starcie */
+        }
+
+        .level-node {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            /* Przykładowa pozycja poziomu 1 - możesz zmienić top/left */
+            top: 50%;
+            left: 20%; 
+            cursor: pointer;
+            transition: transform 0.2s;
+            z-index: 10;
+        }
+        
+        .level-node img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            filter: drop-shadow(0 0 5px yellow); /* Poświata */
+        }
+
+        .level-node:hover {
+            transform: scale(1.2);
+        }
+
+        .level-label {
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        /* === EKRAN WALKI === */
+#game-container {
+    width: 800px;
+    height: 500px;
+    /* TUTAJ DODAJEMY TŁO BITWY */
+    background-image: url('Background.png');
+    background-size: cover;
+    background-position: center;
+    
+    position: relative;
+    border: 5px solid #333;
+    border-radius: 10px;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+    overflow: hidden; 
+    display: none; /* Ukryty na starcie! */
+}
+
+        /* UI Elements Walki */
+        #ui-layer {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            text-shadow: 2px 2px 0 #000;
+            font-size: 24px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        #battle-log {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            height: 60px;
+            background: rgba(0,0,0,0.7);
+            color: #fff;
+            border-radius: 5px;
+            padding: 10px;
+            font-size: 14px;
+            overflow-y: auto;
+            text-align: left;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        #chili-bar-container {
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 20px;
+            background: #333;
+            border-radius: 10px;
+            border: 2px solid white;
+            z-index: 10;
+        }
+
+        #chili-fill {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(to right, #ffcc00, #ff0000);
+            border-radius: 8px;
+            transition: width 0.3s;
+        }
+
+        /* Postacie */
+        .unit {
+            width: 100px; 
+            height: 100px;
+            position: absolute;
+            bottom: 140px; 
+            cursor: grab; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+            z-index: 5;
+            background-size: contain; 
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+        
+        .unit.returning {
+            transition: left 0.5s ease, top 0.5s ease;
+        }
+
+        .unit img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            pointer-events: none; 
+        }
+
+        .unit:hover {
+            transform: scale(1.05);
+            transition: transform 0.2s;
+        }
+
+        .unit.dragging {
+            cursor: grabbing;
+            z-index: 100; 
+            box-shadow: 0 0 20px 8px rgba(255, 255, 0, 0.7);
+            border-radius: 50%;
+            transition: none; 
+        }
+
+        .unit.dead {
+            filter: grayscale(100%);
+            opacity: 0.5;
+            transform: rotate(90deg) translateY(20px);
+            pointer-events: none; 
+        }
+
+        /* Paski życia */
+        .hp-bar {
+            position: absolute;
+            top: -20px;
+            left: 0;
+            width: 100%;
+            height: 10px;
+            background: red;
+            border: 1px solid black;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .hp-current {
+            height: 100%;
+            background: #00ff00;
+            width: 100%;
+            transition: width 0.3s;
+        }
+
+        /* Pozycjonowanie */
+        #red { left: 80px; }
+        #chuck { left: 200px; }
+        #king { right: 80px; width: 120px; height: 120px; bottom: 120px; }
+        #minion { right: 220px; }
+
+        /* Celownik */
+        .target-indicator {
+            position: absolute;
+            background: rgba(255, 255, 0, 0.4);
+            border: 2px dashed yellow;
+            border-radius: 50%;
+            pointer-events: none; 
+            transition: all 0.1s ease-out;
+            z-index: 99;
+        }
+
+        /* Przycisk powrotu do mapy (po walce) */
+        #back-to-map-btn {
+            display: none; /* Ukryty podczas walki */
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 15px 30px;
+            background: gold;
+            border: 3px solid #8B4513;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 100;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+        #back-to-map-btn:hover {
+            background: #ffcc00;
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+
+        /* Animacje */
+        @keyframes attackRight {
+            0% { transform: translateX(0); }
+            50% { transform: translateX(50px); }
+            100% { transform: translateX(0); }
+        }
+        @keyframes attackLeft {
+            0% { transform: translateX(0); }
+            50% { transform: translateX(-50px); }
+            100% { transform: translateX(0); }
+        }
+        .anim-attack-r { animation: attackRight 0.3s ease-in-out; }
+        .anim-attack-l { animation: attackLeft 0.3s ease-in-out; }
+
+    </style>
+</head>
+<body>
+
+    <audio id="bg-music" loop>
+        <source src="Battle.mp3" type="audio/mpeg">
+    </audio>
+
+    <div id="map-screen">
+        <div class="level-node" onclick="loadLevel(1)" style="top: 60%; left: 25%;">
+            <img src="LevelIcon.png" alt="Level 1">
+            <div class="level-label">Poziom 1</div>
+        </div>
+    </div>
+
+    <div id="game-container">
+        <div id="ui-layer">Tura Gracza</div>
+        
+        <div id="chili-bar-container">
+            <div id="chili-fill"></div>
+        </div>
+        
+        <div id="red" class="unit" data-unit-id="red">
+            <img src="RedBird.png" alt="Red">
+            <div class="hp-bar"><div class="hp-current" id="hp-red"></div></div>
+        </div>
+        <div id="chuck" class="unit" data-unit-id="chuck">
+            <img src="ChuckBird.png" alt="Chuck">
+            <div class="hp-bar"><div class="hp-current" id="hp-chuck"></div></div>
+        </div>
+
+        <div id="king" class="unit" data-unit-id="king">
+            <img src="PigKing.png" alt="King">
+            <div class="hp-bar"><div class="hp-current" id="hp-king"></div></div>
+        </div>
+        <div id="minion" class="unit" data-unit-id="minion">
+            <img src="Pig.png" alt="Minion">
+            <div class="hp-bar"><div class="hp-current" id="hp-minion"></div></div>
+        </div>
+
+        <div id="battle-log">Bitwa rozpoczęta!</div>
+        <button id="back-to-map-btn" onclick="goToMap()">Wróć do Mapy</button>
+    </div>
+
+<script>
+    const mapScreen = document.getElementById('map-screen');
+    const gameContainer = document.getElementById('game-container');
+    const music = document.getElementById('bg-music');
+    const backBtn = document.getElementById('back-to-map-btn');
+
+    music.volume = 0.4;
+
+    // === ZARZĄDZANIE EKRANAMI ===
+
+    function loadLevel(levelId) {
+        console.log("Wczytywanie poziomu " + levelId);
+        
+        // Przełącz ekrany
+        mapScreen.style.display = 'none';
+        gameContainer.style.display = 'block';
+
+        // Włącz muzykę (teraz zadziała, bo było kliknięcie)
+        music.play().catch(e => console.log("Audio error:", e));
+
+        // Reset gry
+        resetBattle();
+    }
+
+    function goToMap() {
+        mapScreen.style.display = 'block';
+        gameContainer.style.display = 'none';
+        music.pause();
+        music.currentTime = 0; // Przewiń muzykę do początku
+    }
+
+    // === LOGIKA WALKI ===
+
+    const units = {
+        red: { name: "Czerwony", type: "bird", maxHp: 100, hp: 100, dmg: 25, startLeft: "80px", startBottom: "140px", element: document.getElementById('red') },
+        chuck: { name: "Chuck", type: "bird", maxHp: 70, hp: 70, dmg: 40, startLeft: "200px", startBottom: "140px", element: document.getElementById('chuck') },
+        king: { name: "Król Świń", type: "pig", maxHp: 150, hp: 150, dmg: 15, element: document.getElementById('king') },
+        minion: { name: "Zwykła Świnia", type: "pig", maxHp: 60, hp: 60, dmg: 10, element: document.getElementById('minion') }
+    };
+
+    let draggingUnit = null; 
+    let currentTargetIndicator = null; 
+    let turn = "player"; 
+    let chili = 0; 
+
+    function resetBattle() {
+        turn = "player";
+        chili = 0;
+        backBtn.style.display = 'none';
+        document.getElementById('ui-layer').innerText = "Tura Gracza";
+        document.getElementById('ui-layer').style.color = "white";
+        document.getElementById('battle-log').innerHTML = "Bitwa rozpoczęta!";
+
+        // Reset statystyk i wyglądu jednostek
+        for (let key in units) {
+            const u = units[key];
+            u.hp = u.maxHp;
+            u.element.classList.remove('dead');
+            u.element.style.cursor = "grab";
+            u.element.style.transform = "none";
+            u.element.style.filter = "none";
+            u.element.style.opacity = "1";
+            
+            // Reset pozycji
+            u.element.style.left = u.startLeft;
+            u.element.style.bottom = u.startBottom;
+            u.element.style.top = "auto";
+            
+            // Przywróć listenery
+            u.element.removeEventListener('mousedown', startDrag);
+            u.element.removeEventListener('touchstart', startDrag);
+            if (u.type === 'bird') {
+                u.element.addEventListener('mousedown', startDrag);
+                u.element.addEventListener('touchstart', startDrag, { passive: false });
+            }
+        }
+        updateUI();
+    }
+
+    function updateUI() {
+        for (let key in units) {
+            const u = units[key];
+            const hpPercent = Math.max(0, (u.hp / u.maxHp) * 100);
+            document.getElementById(`hp-${key}`).style.width = hpPercent + "%";
+            
+            if (u.hp <= 0 && !u.element.classList.contains('dead')) {
+                u.element.classList.add('dead');
+                u.element.style.cursor = "default";
+                // Od razu reset pozycji jeśli zginął w locie
+                u.element.style.left = u.startLeft;
+                u.element.style.bottom = u.startBottom;
+                u.element.style.top = "auto";
+            }
+        }
+        
+        document.getElementById('chili-fill').style.width = Math.min(100, chili) + "%";
+        
+        if (turn === "player") {
+            document.getElementById('ui-layer').innerText = "Tura Gracza";
+        } else if (turn === "enemy") {
+            document.getElementById('ui-layer').innerText = "Tura Świń...";
+        }
+    }
+
+    function log(msg) {
+        const logBox = document.getElementById('battle-log');
+        logBox.innerHTML = `> ${msg}<br>` + logBox.innerHTML;
+        logBox.scrollTop = 0;
+    }
+
+    function startDrag(e) {
+        if (turn !== "player") return;
+        
+        const unitElement = e.currentTarget; 
+        const unitId = unitElement.dataset.unitId;
+        const unit = units[unitId];
+
+        if (unit.hp <= 0) return; 
+
+        draggingUnit = unitId;
+        unitElement.classList.add('dragging');
+        unitElement.classList.remove('returning'); 
+
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', endDrag);
+        document.addEventListener('touchmove', drag, { passive: false });
+        document.addEventListener('touchend', endDrag);
+
+        e.preventDefault();
+    }
+
+    function drag(e) {
+        if (!draggingUnit) return;
+        
+        const heroElement = units[draggingUnit].element;
+        heroElement.style.position = 'absolute'; 
+
+        let clientX = e.clientX;
+        let clientY = e.clientY;
+
+        if (e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        }
+
+        const containerRect = gameContainer.getBoundingClientRect();
+        
+        let newX = clientX - containerRect.left - heroElement.offsetWidth / 2;
+        let newY = clientY - containerRect.top - heroElement.offsetHeight / 2;
+
+        heroElement.style.left = `${newX}px`;
+        heroElement.style.top = `${newY}px`;
+        heroElement.style.bottom = 'auto'; 
+
+        const target = getTargetUnderCursor(clientX, clientY);
+        if (target && target.type === 'pig') {
+            showTargetIndicator(target.element);
+        } else {
+            hideTargetIndicator();
+        }
+
+        e.preventDefault(); 
+    }
+
+    function endDrag(e) {
+        if (!draggingUnit) return;
+
+        const unitObj = units[draggingUnit];
+        const heroElement = unitObj.element;
+        
+        heroElement.classList.remove('dragging');
+        hideTargetIndicator();
+
+        let clientX = e.clientX;
+        let clientY = e.clientY;
+        if (e.changedTouches && e.changedTouches.length > 0) {
+            clientX = e.changedTouches[0].clientX;
+            clientY = e.changedTouches[0].clientY;
+        }
+
+        const target = getTargetUnderCursor(clientX, clientY);
+
+        if (target && target.type === 'pig' && target.hp > 0) {
+            performAttack(unitObj, target);
+            setTimeout(enemyTurn, 1200); 
+        } 
+
+        returnToPerch(unitObj);
+
+        draggingUnit = null;
+        document.removeEventListener('mousemove', drag);
+        document.removeEventListener('mouseup', endDrag);
+        document.removeEventListener('touchmove', drag);
+        document.removeEventListener('touchend', endDrag);
+    }
+
+    function returnToPerch(unitObj) {
+        const el = unitObj.element;
+        el.classList.add('returning');
+        setTimeout(() => {
+            el.style.top = "auto"; 
+            el.style.left = unitObj.startLeft; 
+            el.style.bottom = unitObj.startBottom; 
+        }, 10);
+        setTimeout(() => {
+            el.classList.remove('returning');
+        }, 500);
+    }
+
+    function getTargetUnderCursor(x, y) {
+        for (let key in units) {
+            const unit = units[key];
+            if (unit.type === 'pig' && unit.hp > 0) {
+                const rect = unit.element.getBoundingClientRect();
+                if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+                    return unit;
+                }
+            }
+        }
+        return null;
+    }
+
+    function showTargetIndicator(targetElement) {
+        if (!currentTargetIndicator) {
+            currentTargetIndicator = document.createElement('div');
+            currentTargetIndicator.classList.add('target-indicator');
+            gameContainer.appendChild(currentTargetIndicator);
+        }
+        const rect = targetElement.getBoundingClientRect();
+        const containerRect = gameContainer.getBoundingClientRect();
+
+        currentTargetIndicator.style.width = `${rect.width + 20}px`;
+        currentTargetIndicator.style.height = `${rect.height + 20}px`;
+        currentTargetIndicator.style.left = `${rect.left - containerRect.left - 10}px`;
+        currentTargetIndicator.style.top = `${rect.top - containerRect.top - 10}px`;
+        currentTargetIndicator.style.display = 'block';
+    }
+
+    function hideTargetIndicator() {
+        if (currentTargetIndicator) {
+            currentTargetIndicator.style.display = 'none';
+        }
+    }
+
+    function performAttack(attacker, defender) {
+        let damage = attacker.dmg;
+        if (attacker.name === "Chuck" && Math.random() > 0.8) {
+            damage *= 2;
+            log("KRYTYCZNY CIOS Chucka!");
+        }
+
+        defender.hp -= damage;
+        log(`${attacker.name} trafia ${defender.name} za ${damage}!`);
+
+        defender.element.style.transform = "translateX(5px)";
+        setTimeout(() => defender.element.style.transform = "translateX(0)", 100);
+
+        if (attacker.type === 'bird') {
+            chili += 15;
+        }
+
+        checkWinCondition();
+        updateUI();
+    }
+
+    function enemyTurn() {
+        if(turn === "gameover") return;
+
+        turn = "enemy";
+        updateUI();
+
+        const livingPigs = [units.king, units.minion].filter(u => u.hp > 0);
+        const livingBirds = [units.red, units.chuck].filter(u => u.hp > 0);
+
+        if (livingPigs.length === 0 || livingBirds.length === 0) return;
+
+        livingPigs.forEach((pig, index) => {
+            setTimeout(() => {
+                if (pig.hp > 0 && livingBirds.length > 0) {
+                    const target = livingBirds[Math.floor(Math.random() * livingBirds.length)];
+                    
+                    pig.element.classList.add('anim-attack-l');
+                    setTimeout(() => pig.element.classList.remove('anim-attack-l'), 300);
+                    
+                    performAttack(pig, target);
+                }
+                
+                if (index === livingPigs.length - 1) {
+                    setTimeout(() => {
+                        if(turn !== "gameover") {
+                            turn = "player";
+                            updateUI();
+                            log("Twoja tura!");
+                        }
+                    }, 1000);
+                }
+            }, index * 1000 + 500);
+        });
+    }
+
+    function checkWinCondition() {
+        if (units.red.hp <= 0 && units.chuck.hp <= 0) {
+            log("PRZEGRAŁEŚ!");
+            turn = "gameover";
+            document.getElementById('ui-layer').innerText = "KONIEC GRY";
+            document.getElementById('ui-layer').style.color = "red";
+            backBtn.style.display = 'block'; // Pokaż przycisk powrotu
+        } else if (units.king.hp <= 0 && units.minion.hp <= 0) {
+            log("WYGRAŁEŚ!");
+            turn = "gameover";
+            document.getElementById('ui-layer').innerText = "ZWYCIĘSTWO!";
+            document.getElementById('ui-layer').style.color = "gold";
+            backBtn.style.display = 'block'; // Pokaż przycisk powrotu
+        }
+    }
+
+    function removeDragListeners() {
+        for (let key in units) {
+            const unit = units[key];
+            unit.element.removeEventListener('mousedown', startDrag);
+            unit.element.removeEventListener('touchstart', startDrag);
+        }
+        document.removeEventListener('mousemove', drag);
+        document.removeEventListener('mouseup', endDrag);
+    }
+
+    // Initial setup
+    // addDragListeners wywołane w resetBattle
+</script>
+
+</body>
+</html>
